@@ -1,7 +1,7 @@
 /**
  *  Hive Smart Siren
- *
- *  Copyright 2018 Samsung SRBR
+ *       Author: Satinder Pahwa
+ *       This is a device handler for Smartthings platform for the Hive Siren from UK,
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -34,9 +34,13 @@ metadata {
 			state "off", label:'off', action:'alarm.siren', icon:"st.secondary.siren", backgroundColor:"#ffffff"
 			state "siren", label:'siren!', action:'alarm.off', icon:"st.secondary.siren", backgroundColor:"#e86d13"
 		}
+        standardTile(name: "light", type:"lighting", width: 2, height: 2) {
+			state "off", label:'On', action:'lightOn', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff"
+			state "on", label:'Off', action:'lightOff', icon:"st.lights.philips.hue-single", backgroundColor:"#e86d13"
+		}
 
 		main "alarm"
-		details(["alarm"])
+		details(["alarm","light"])
 	}
 }
 
@@ -52,6 +56,7 @@ private getCOMMAND_IAS_WD_START_WARNING() { 0x00 }
 private getCOMMAND_DEFAULT_RESPONSE() { 0x0B }
 
 private getIAS_WD_ZONE_CLUSTER() { 0x0500 }
+private getIAS_LIGHT_CLUSTER() { 0x0006 }
 
 def turnOffAlarmTile(){
 	sendEvent(name: "alarm", value: "off")
@@ -124,8 +129,6 @@ def ping() {
 def configure() {
 	sendCheckIntervalEvent()
     
-    // log.info "configure zigbeeEui: ${hub.zigbeeEui}"
-    // zigbee.writeAttribute(0x0500, 0x0010, 0xf0, swapEndianHex(device.hub.zigbeeEui))
 
 	def cmds = zigbee.enrollResponse() +
 			zigbee.writeAttribute(IAS_WD_CLUSTER, ATTRIBUTE_IAS_WD_MAXDURATION, DataType.UINT16, DEFAULT_DURATION) +
@@ -156,4 +159,18 @@ def off() {
 
 	state.alarmOn = false
 	zigbee.command(IAS_WD_CLUSTER, COMMAND_IAS_WD_START_WARNING, "00", "0000", "00", "00")
+}
+
+def lightOff() {
+	log.debug "lightOff()"
+
+	state.light = false
+	zigbee.command(getIAS_LIGHT_CLUSTER(),0x00,"", [destEndpoint: 02])
+}
+
+ef lightOff() {
+	log.debug "lightOn()"
+
+	state.light = true
+	zigbee.command(getIAS_LIGHT_CLUSTER(),0x01,"", [destEndpoint: 02])
 }
