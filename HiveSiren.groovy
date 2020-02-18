@@ -18,30 +18,34 @@ import physicalgraph.zigbee.clusters.iaszone.ZoneStatus
 import physicalgraph.zigbee.zcl.DataType
 
 metadata {
-	definition(name: "Hive Smart Siren", namespace: "satinderpahwa", author: "Satinder", mnmn: "SmartThings", vid: "hive", ocfDeviceType: "hive.siren") {
-		capability "Actuator"
-		capability "Alarm"
-		capability "Switch"
-		capability "Configuration"
-		capability "Health Check"
+    definition(name: "Hive Smart Siren2", namespace: "satinderpahwa", author: "Satinder", mnmn: "SmartThings", vid: "hive", ocfDeviceType: "hive.siren") {
+        capability "Actuator"
+        capability "Alarm"
+        capability "Switch"
+        capability "Configuration"
+        capability "Health Check"
+        capability "Light"
 
-		fingerprint profileId: "0104", inClusters: "0000 0001 0003 0004 0500 0502 0B05", outClusters: "0019", manufacturer: "LDS", model: "SIREN001", deviceJoinName: "Hive Siren" // Ozom Siren - SRAC-23ZBS
+        command "lightOn"
+        command "lightOff"
+
+        fingerprint profileId: "0104", inClusters: "0000 0001 0003 0004 0500 0502 0B05", outClusters: "0019", manufacturer: "LDS", model: "SIREN001", deviceJoinName: "Hive Siren" // Ozom Siren - SRAC-23ZBS
         fingerprint profileId: "0104", inClusters: "0000 0004 0005 0006 0008", manufacturer: "LDS", model: "SIREN001", deviceJoinName: "Siren Light"
 }
 
-	tiles {
-		standardTile("alarm", "device.alarm", width: 2, height: 2) {
-			state "off", label:'off', action:'alarm.siren', icon:"st.secondary.siren", backgroundColor:"#ffffff"
-			state "siren", label:'siren!', action:'alarm.off', icon:"st.secondary.siren", backgroundColor:"#e86d13"
-		}
-        standardTile(name: "light", type:"lighting", width: 2, height: 2) {
-			state "off", label:'On', action:'lightOn', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff"
-			state "on", label:'Off', action:'lightOff', icon:"st.lights.philips.hue-single", backgroundColor:"#e86d13"
-		}
+    tiles {
+        standardTile("alarm", "device.alarm", width: 2, height: 2) {
+            state "off", label:'off', action:'alarm.siren', icon:"st.secondary.siren", backgroundColor:"#ffffff"
+            state "siren", label:'siren!', action:'alarm.off', icon:"st.secondary.siren", backgroundColor:"#e86d13"
+        }
+        standardTile(name: "light", type:"device.switch", width: 2, height: 2) {
+            state "off", label:'off', action:'lightOn', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", nextState: "on"
+            state "on", label:'On', action:'lightOff', icon:"st.lights.philips.hue-single", backgroundColor:"#e86d13", nextState: "off"
+        }
 
-		main "alarm"
-		details(["alarm","light"])
-	}
+        main "alarm"
+        details(["alarm","light"])
+    }
 }
 
 private getDEFAULT_MAX_DURATION() { 0x00B4 }
@@ -59,118 +63,118 @@ private getIAS_WD_ZONE_CLUSTER() { 0x0500 }
 private getIAS_LIGHT_CLUSTER() { 0x0006 }
 
 def turnOffAlarmTile(){
-	sendEvent(name: "alarm", value: "off")
-	sendEvent(name: "switch", value: "off")
+    sendEvent(name: "alarm", value: "off")
+    sendEvent(name: "switch", value: "off")
 }
 
 def turnOnAlarmTile(){
-	sendEvent(name: "alarm", value: "siren")
-	sendEvent(name: "switch", value: "on")
+    sendEvent(name: "alarm", value: "siren")
+    sendEvent(name: "switch", value: "on")
 }
 
 def installed() {
     def hub = location.hubs[0]
     log.info "Installed routine called"
-	sendCheckIntervalEvent()
-	state.maxDuration = DEFAULT_MAX_DURATION
-	turnOffAlarmTile()
+    sendCheckIntervalEvent()
+    state.maxDuration = DEFAULT_MAX_DURATION
+    turnOffAlarmTile()
     log.info "zigbeeEui: ${hub.zigbeeEui}"
     // zigbee.writeAttribute(0x0500, 0x0010, 0xf0, swapEndianHex(hub.zigbeeEui))
     zigbee.writeAttribute(0x0500,0x0010,DataType.STRING_CHAR,${hub.zigbeeEui})
 }
 
 def parse(String description) {
-	log.debug "Parsing '${description}'"
+    log.debug "Parsing '${description}'"
 
-	Map map = zigbee.getEvent(description)
-	if (!map) {
-		if (description?.startsWith('enroll request')) {
-			List cmds = zigbee.enrollResponse()
-			log.debug "enroll response: ${cmds}"
-			return cmds
-		} else {
-			Map descMap = zigbee.parseDescriptionAsMap(description)
-			if (descMap?.clusterInt == IAS_WD_CLUSTER) {
-				def data = descMap.data
+    Map map = zigbee.getEvent(description)
+    if (!map) {
+        if (description?.startsWith('enroll request')) {
+            List cmds = zigbee.enrollResponse()
+            log.debug "enroll response: ${cmds}"
+            return cmds
+        } else {
+            Map descMap = zigbee.parseDescriptionAsMap(description)
+            if (descMap?.clusterInt == IAS_WD_CLUSTER) {
+                def data = descMap.data
 
-				Integer parsedAttribute = descMap.attrInt
-				Integer command = Integer.parseInt(descMap.command, 16)
-				if (parsedAttribute == ATTRIBUTE_IAS_WD_MAXDURATION && descMap?.value) {
-					state.maxDuration = Integer.parseInt(descMap.value, 16)
-				} else if (command == COMMAND_DEFAULT_RESPONSE) {
-					Boolean isSuccess = Integer.parseInt(data[-1], 16) == 0
-					Integer receivedCommand = Integer.parseInt(data[-2], 16)
-					if (receivedCommand == COMMAND_IAS_WD_START_WARNING && isSuccess){
-						if(state.alarmOn){
-							turnOnAlarmTile()
-							runIn(state.lastDuration, turnOffAlarmTile)
-						} else {
-							turnOffAlarmTile()
-						}
-					}
-				}
-			}
-		}
-	}
-	log.debug "Parse returned $map"
-	def results = map ? createEvent(map) : null
-	log.debug "parse results: " + results
-	return results
+                Integer parsedAttribute = descMap.attrInt
+                Integer command = Integer.parseInt(descMap.command, 16)
+                if (parsedAttribute == ATTRIBUTE_IAS_WD_MAXDURATION && descMap?.value) {
+                    state.maxDuration = Integer.parseInt(descMap.value, 16)
+                } else if (command == COMMAND_DEFAULT_RESPONSE) {
+                    Boolean isSuccess = Integer.parseInt(data[-1], 16) == 0
+                    Integer receivedCommand = Integer.parseInt(data[-2], 16)
+                    if (receivedCommand == COMMAND_IAS_WD_START_WARNING && isSuccess){
+                        if(state.alarmOn){
+                            turnOnAlarmTile()
+                            runIn(state.lastDuration, turnOffAlarmTile)
+                        } else {
+                            turnOffAlarmTile()
+                        }
+                    }
+                }
+            }
+        }
+    }
+    log.debug "Parse returned $map"
+    def results = map ? createEvent(map) : null
+    log.debug "parse results: " + results
+    return results
 }
 
 private sendCheckIntervalEvent() {
-	sendEvent(name: "checkInterval", value: 30 * 60, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
+    sendEvent(name: "checkInterval", value: 30 * 60, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
 }
 
 def ping() {
-	return zigbee.readAttribute(zigbee.IAS_ZONE_CLUSTER, zigbee.ATTRIBUTE_IAS_ZONE_STATUS)
+    return zigbee.readAttribute(zigbee.IAS_ZONE_CLUSTER, zigbee.ATTRIBUTE_IAS_ZONE_STATUS)
 }
 
 def configure() {
-	sendCheckIntervalEvent()
-    
+    sendCheckIntervalEvent()
 
-	def cmds = zigbee.enrollResponse() +
-			zigbee.writeAttribute(IAS_WD_CLUSTER, ATTRIBUTE_IAS_WD_MAXDURATION, DataType.UINT16, DEFAULT_DURATION) +
-			zigbee.configureReporting(zigbee.IAS_ZONE_CLUSTER, zigbee.ATTRIBUTE_IAS_ZONE_STATUS, DataType.BITMAP16, 0, 180, null)
-	log.debug "configure: " + cmds
 
-	return cmds	
+    def cmds = zigbee.enrollResponse() +
+            zigbee.writeAttribute(IAS_WD_CLUSTER, ATTRIBUTE_IAS_WD_MAXDURATION, DataType.UINT16, DEFAULT_DURATION) +
+            zigbee.configureReporting(zigbee.IAS_ZONE_CLUSTER, zigbee.ATTRIBUTE_IAS_ZONE_STATUS, DataType.BITMAP16, 0, 180, null)
+    log.debug "configure: " + cmds
+
+    return cmds
 }
 
 def siren() {
-	log.debug "siren()"
-	on()
+    log.debug "siren()"
+    on()
 }
 
 def on() {
-	log.debug "on()"
+    log.debug "on()"
 
-	state.alarmOn = true
-	def warningDuration = state.maxDuration ? state.maxDuration : DEFAULT_MAX_DURATION
-	state.lastDuration = warningDuration
+    state.alarmOn = true
+    def warningDuration = state.maxDuration ? state.maxDuration : DEFAULT_MAX_DURATION
+    state.lastDuration = warningDuration
 
-	// start warning, burglar mode, no strobe, siren very high
-	zigbee.command(IAS_WD_CLUSTER, COMMAND_IAS_WD_START_WARNING, "13", DataType.pack(warningDuration, DataType.UINT16), "00", "00")
+    // start warning, burglar mode, no strobe, siren very high
+    zigbee.command(IAS_WD_CLUSTER, COMMAND_IAS_WD_START_WARNING, "13", DataType.pack(warningDuration, DataType.UINT16), "00", "00")
 }
 
 def off() {
-	log.debug "off()"
+    log.debug "off()"
 
-	state.alarmOn = false
-	zigbee.command(IAS_WD_CLUSTER, COMMAND_IAS_WD_START_WARNING, "00", "0000", "00", "00")
+    state.alarmOn = false
+    zigbee.command(IAS_WD_CLUSTER, COMMAND_IAS_WD_START_WARNING, "00", "0000", "00", "00")
 }
 
 def lightOff() {
-	log.debug "lightOff()"
+    log.debug "lightOff()"
 
-	state.light = false
-	zigbee.command(getIAS_LIGHT_CLUSTER(),0x00,"", [destEndpoint: 02])
+    state.lightOn = true
+    zigbee.command(getIAS_LIGHT_CLUSTER(),0x00,"", [destEndpoint: 02])
 }
 
-ef lightOff() {
-	log.debug "lightOn()"
+def lightOn() {
+    log.debug "lightOn()"
 
-	state.light = true
-	zigbee.command(getIAS_LIGHT_CLUSTER(),0x01,"", [destEndpoint: 02])
+    state.lightOn = false
+    zigbee.command(getIAS_LIGHT_CLUSTER(),0x01,"", [destEndpoint: 02])
 }
