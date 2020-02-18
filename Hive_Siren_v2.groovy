@@ -12,7 +12,7 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *  Note that off will rurn both the light and siren OFF
+ *  Note that off will turn both the light and siren OFF
  * Revision:  V2:  Changed to separate the ligting on() from Siren() on.  Any command
  *                 to turn off, will turn both siren and light off (no way to separate
  *                 the off command between the two unless we use child devices.
