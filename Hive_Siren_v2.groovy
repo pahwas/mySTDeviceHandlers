@@ -170,9 +170,8 @@ def off() {
     log.debug "off()"
 
     state.alarmOn = false
-    zigbee.command(IAS_WD_CLUSTER, COMMAND_IAS_WD_START_WARNING, "00", "0000", "00", "00")
     state.lightOn = false
-    zigbee.command(getIAS_LIGHT_CLUSTER(),0x00,"", [destEndpoint: 02])
+    zigbee.command(IAS_WD_CLUSTER, COMMAND_IAS_WD_START_WARNING, "00", "0000", "00", "00") + zigbee.command(getIAS_LIGHT_CLUSTER(),0x00,"", [destEndpoint: 02])
 }
 
 //def lightOff() {
